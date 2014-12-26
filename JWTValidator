@@ -1,0 +1,132 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using Newtonsoft.Json.Linq;
+using System.Text;
+using System.IO;
+using System.Security.Cryptography;
+
+namespace JWTValidation
+{
+    public class JWTValidator
+    {
+        public static bool Validation(string idToken, string jwksJsonString){
+
+            // IDトークンはJWTなのでまず分解する。
+            JWTProperty jwtProperty = JWTDecode(idToken);
+
+            var idtokenHeader = JObject.Parse(jwtProperty._header);
+            var idtokenPayload = JObject.Parse(jwtProperty._payload);
+
+            // jwksのJSONをパースする
+            var json_jwks = JObject.Parse(jwksJsonString);
+
+            var keys = json_jwks["keys"];
+
+            string modulus = string.Empty;
+            string exponent = string.Empty;
+            string alg = string.Empty;
+
+            JArray a = JArray.Parse(keys.ToString());
+            foreach (JObject k in a.Children<JObject>())
+            {
+                if (idtokenHeader["kid"].ToString() == k["kid"].ToString())
+                {
+                    modulus = k["n"].ToString();
+                    exponent = k["e"].ToString();
+                    alg = k["alg"].ToString();
+                }
+            }
+
+            bool b = false;
+            RSAParameters publicKeyParams = new RSAParameters();
+            publicKeyParams.Modulus = DecodeBytes(modulus);
+            publicKeyParams.Exponent = DecodeBytes(exponent);
+            RSACryptoServiceProvider publicKey = new RSACryptoServiceProvider();
+            publicKey.ImportParameters(publicKeyParams);
+
+            RSAPKCS1SignatureDeformatter rsaDeformatter = new RSAPKCS1SignatureDeformatter(publicKey);
+
+            //署名の検証に使用するハッシュアルゴリズムを指定
+            string hashAlgorithm = string.Empty;
+            string signstring = jwtProperty._toSignatureString;
+            byte[] hashData = null; 
+            switch(alg){
+                case "RS256":
+                    hashAlgorithm = "SHA256";
+                    SHA256 signer_sha256 = SHA256.Create();
+                    hashData = signer_sha256.ComputeHash(Encoding.UTF8.GetBytes(signstring));
+                    break;
+                case "HS256":
+                    hashAlgorithm = "HMACSHA256";
+                    HMAC signer_hsha256 = HMACSHA256.Create();
+                    hashData = signer_hsha256.ComputeHash(Encoding.UTF8.GetBytes(signstring));
+                    break;
+                case "RS512":
+                    hashAlgorithm = "SHA512";
+                    SHA512 signer_sha512 = SHA512.Create();
+                    hashData = signer_sha512.ComputeHash(Encoding.UTF8.GetBytes(signstring));
+                    break;
+
+            }
+            rsaDeformatter.SetHashAlgorithm(hashAlgorithm);
+
+            //署名を検証し、結果を返す
+            b = rsaDeformatter.VerifySignature(hashData, DecodeBytes(jwtProperty._signature));
+
+            return b;
+        }
+
+        public class JWTProperty
+        {
+            public string _header;
+            public string _payload;
+            public string _signature;
+            public string _toSignatureString;
+        }
+
+
+        public static JWTProperty JWTDecode(string jwt)
+        {
+            JWTProperty jwtProperty = new JWTProperty();
+
+            string[] tokens = jwt.Split('.');
+
+            if (tokens.Length != 3)
+            {
+                throw new ApplicationException("jwt separate error.");
+            }
+
+            string header = tokens[0];
+            string payload = tokens[1];
+            jwtProperty._signature = tokens[2];
+
+            jwtProperty._toSignatureString = header + "." + payload;
+
+            jwtProperty._header = Base64Decode(header);
+            jwtProperty._payload = Base64Decode(payload);
+
+            return jwtProperty;
+        }
+
+        public static Encoding TextEncoding = Encoding.UTF8;
+
+        private static byte[] DecodeBytes(string base64string)
+        {
+            StringBuilder s = new StringBuilder(base64string);
+            s.Replace('-', '+');
+            s.Replace('_', '/');
+
+            int pad = s.Length % 4;
+            s.Append('=', (pad == 0) ? 0 : 4 - pad);
+
+            return Convert.FromBase64String(s.ToString());
+        }
+
+        private static string Base64Decode(string arg)
+        {
+            return TextEncoding.GetString(DecodeBytes(arg));
+        }
+    }
+}
