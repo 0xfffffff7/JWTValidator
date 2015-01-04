@@ -3,21 +3,22 @@ JWTValidator
 
 JSON Web Token Validator for C#
 
-* How to
+# How to
 
 Validation Method.  
  bool JWTValidator.Validation(string idToken, string jwksJsonString) 
 
-* idToken parameter 
+# idToken parameter 
  JWT String
 
-* jwksJsonString parameter 
+# jwksJsonString parameter 
 
  JWKURL Response 
 
  Example  
  https://www.googleapis.com/oauth2/v2/certs  
-`
+
+```
 {
  "keys": [
   {
@@ -38,5 +39,6 @@ Validation Method.
   }
  ]
 }
-`
+```
+
 
