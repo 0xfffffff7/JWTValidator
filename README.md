@@ -6,12 +6,15 @@ JSON Web Token Validator for C#
 # How to
 
 Validation Method.  
- bool JWTValidator.Validation(string idToken, string jwksJsonString) 
 
-# idToken parameter 
+```
+ bool JWTValidator.Validation(string idToken, string jwksJsonString) 
+```
+
+* idToken parameter 
  JWT String
 
-# jwksJsonString parameter 
+* jwksJsonString parameter 
 
  JWKURL Response 
 
